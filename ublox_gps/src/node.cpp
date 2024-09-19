@@ -187,6 +187,7 @@ UbloxNode::UbloxNode(const rclcpp::NodeOptions & options) : rclcpp::Node("ublox_
 
   gnss_ = std::make_shared<Gnss>();
 
+
   updater_ = std::make_shared<diagnostic_updater::Updater>(this);
   updater_->setHardwareID("ublox");
 
@@ -194,6 +195,7 @@ UbloxNode::UbloxNode(const rclcpp::NodeOptions & options) : rclcpp::Node("ublox_
 }
 
 void UbloxNode::rtcmCallback(const rtcm_msgs::msg::Message::SharedPtr msg) {
+  //RCLCPP_INFO(this->get_logger(), "Received RTCM message of size: %zu", msg->message.size());
   gps_->sendRtcm(msg->message);
 }
 
@@ -368,7 +370,7 @@ void UbloxNode::getRosParams() {
   meas_rate_ = 1000 / rate_;
 
   // activate/deactivate any config
-  this->declare_parameter("config_on_startup", true);
+  this->declare_parameter("config_on_startup", false);
   this->declare_parameter("raw_data", false);
   this->declare_parameter("clear_bbr", false);
   this->declare_parameter("save_on_shutdown", false);
@@ -499,7 +501,18 @@ void UbloxNode::getRosParams() {
   }
 
   // Create subscriber for RTCM correction data to enable RTK
-  this->subscription_ = this->create_subscription<rtcm_msgs::msg::Message>("/rtcm", 10, std::bind(&UbloxNode::rtcmCallback, this, std::placeholders::_1));
+  //this->subscription_ = this->create_subscription<rtcm_msgs::msg::Message>("/ublox_gps_node/rtcm", 10, std::bind(&UbloxNode::rtcmCallback, this, std::placeholders::_1));
+  //rtcm topic name
+  std::string rtcm_topic = this->get_namespace();
+  if (rtcm_topic.empty() || rtcm_topic == "/") {
+    rtcm_topic = "/rtcm";  // No namespace, just use "/rtcm"
+  } else {
+    rtcm_topic += "/rtcm";  // Concatenate the namespace with "/rtcm"
+  }
+  
+  rtcm_sub_ = this->create_subscription<rtcm_msgs::msg::Message>(
+    rtcm_topic, 10, std::bind(&UbloxNode::rtcmCallback, this, std::placeholders::_1));
+
 }
 
 void UbloxNode::keepAlive() {
@@ -884,6 +897,14 @@ void UbloxNode::initializeIo() {
 }
 
 void UbloxNode::initialize() {
+  //rtcm topic name
+  std::string rtcm_topic = this->get_namespace();
+  if (rtcm_topic.empty() || rtcm_topic == "/") {
+    rtcm_topic = "/rtcm";  // No namespace, just use "/rtcm"
+  } else {
+    rtcm_topic += "/rtcm";  // Concatenate the namespace with "/rtcm"
+  }
+
   // Params must be set before initializing IO
   getRosParams();
 
@@ -923,6 +944,8 @@ void UbloxNode::initialize() {
     poller_ = this->create_wall_timer(std::chrono::milliseconds(static_cast<int64_t>(kPollDuration * 1000.0)),
                                       std::bind(&UbloxNode::pollMessages, this));
   }
+  RCLCPP_INFO(this->get_logger(), "Subscribing to RTCM topic: %s", rtcm_topic.c_str());
+
 }
 
 void UbloxNode::shutdown() {

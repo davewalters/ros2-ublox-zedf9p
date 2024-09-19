@@ -174,6 +174,8 @@ template <typename StreamT>
 bool AsyncWorker<StreamT>::send(const unsigned char* data,
                                 const unsigned int size) {
   std::lock_guard<std::mutex> lock(write_mutex_);
+  //RCLCPP_INFO(logger_, "Ublox AsyncWorker::send: Attempting to send %u bytes", size);
+
   if (size == 0) {
     RCLCPP_ERROR(logger_, "Ublox AsyncWorker::send: Size of message to send is 0");
     return true;
@@ -184,8 +186,10 @@ bool AsyncWorker<StreamT>::send(const unsigned char* data,
     return false;
   }
   out_.insert(out_.end(), data, data + size);
+  //RCLCPP_INFO(logger_, "Ublox AsyncWorker::send: Inserted %u bytes into the buffer. Buffer size is now: %zu", size, out_.size());
 
   io_service_->post(std::bind(&AsyncWorker<StreamT>::doWrite, this));
+  RCLCPP_INFO(logger_, "Ublox AsyncWorker::send: Posted async write operation");
   return true;
 }
 
